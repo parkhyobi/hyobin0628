@@ -1,0 +1,296 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>메모리 게임 - 과일 카드</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f8ff;
+    margin: 0; padding: 20px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 {
+    margin-bottom: 10px;
+  }
+  #score {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+  #game-board {
+    display: grid;
+    grid-template-columns: repeat(5, 100px);
+    grid-gap: 15px;
+  }
+  .card {
+    width: 100px; height: 140px;
+    background-color: #4CAF50;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+    position: relative;
+    perspective: 600px;
+  }
+  .card-inner {
+    position: relative;
+    width: 100%; height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+  }
+  .card.flipped .card-inner {
+    transform: rotateY(180deg);
+  }
+  .card-front, .card-back {
+    position: absolute;
+    width: 100%; height: 100%;
+    backface-visibility: hidden;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 60px;
+  }
+  .card-front {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .card-back {
+    background-color: white;
+    transform: rotateY(180deg);
+    font-size: 50px;
+  }
+  #fireworks {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+</style>
+</head>
+<body>
+
+
+<h1>메모리 게임 - 과일 카드</h1>
+<div id="score">점수: 0</div>
+<div id="game-board"></div>
+
+
+<canvas id="fireworks"></canvas>
+
+
+<script>
+// 과일 이모지 배열 (5종류, 2개씩)
+const fruits = ['🍎', '🍌', '🍇', '🍉', '🍒'];
+let cards = [...fruits, ...fruits]; // 10장
+
+
+// 셔플 함수
+function shuffle(array) {
+  for(let i = array.length -1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+
+// 변수
+let firstCard = null;
+let secondCard = null;
+let lockBoard = false;
+let matchedPairs = 0;
+let score = 0;
+
+
+const board = document.getElementById('game-board');
+const scoreEl = document.getElementById('score');
+
+
+function createCard(fruit, index) {
+  const card = document.createElement('div');
+  card.classList.add('card');
+  card.dataset.fruit = fruit;
+  card.dataset.index = index;
+
+
+  const cardInner = document.createElement('div');
+  cardInner.classList.add('card-inner');
+
+
+  const cardFront = document.createElement('div');
+  cardFront.classList.add('card-front');
+  cardFront.textContent = '?';
+
+
+  const cardBack = document.createElement('div');
+  cardBack.classList.add('card-back');
+  cardBack.textContent = fruit;
+
+
+  cardInner.appendChild(cardFront);
+  cardInner.appendChild(cardBack);
+  card.appendChild(cardInner);
+
+
+  card.addEventListener('click', onCardClick);
+
+
+  return card;
+}
+
+
+function onCardClick(e) {
+  if(lockBoard) return;
+  const clicked = e.currentTarget;
+  if(clicked === firstCard) return;
+
+
+  flipCard(clicked);
+
+
+  if(!firstCard) {
+    firstCard = clicked;
+    return;
+  }
+
+
+  secondCard = clicked;
+  lockBoard = true;
+
+
+  checkMatch();
+}
+
+
+function flipCard(card) {
+  card.classList.add('flipped');
+}
+
+
+function unflipCards() {
+  setTimeout(() => {
+    firstCard.classList.remove('flipped');
+    secondCard.classList.remove('flipped');
+    resetBoard();
+  }, 1000);
+}
+
+
+function checkMatch() {
+  if(firstCard.dataset.fruit === secondCard.dataset.fruit) {
+    // 맞음
+    score += 10;
+    matchedPairs++;
+    scoreEl.textContent = `점수: ${score}`;
+    resetBoard();
+
+
+    if(matchedPairs === fruits.length) {
+      setTimeout(() => {
+        alert('모두 맞췄습니다! 🎉 폭죽을 터트립니다!');
+        startFireworks();
+      }, 300);
+    }
+  } else {
+    // 다름
+    unflipCards();
+  }
+}
+
+
+function resetBoard() {
+  [firstCard, secondCard] = [null, null];
+  lockBoard = false;
+}
+
+
+function startFireworks() {
+  const canvas = document.getElementById('fireworks');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+
+  let particles = [];
+
+
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.color = color;
+      this.size = Math.random() * 4 + 1;
+      this.speedX = (Math.random() - 0.5) * 5;
+      this.speedY = (Math.random() - 0.5) * 5;
+      this.alpha = 1;
+      this.decay = 0.02;
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      this.alpha -= this.decay;
+    }
+    draw() {
+      ctx.globalAlpha = this.alpha;
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+
+  function createParticles() {
+    for(let i=0; i<100; i++) {
+      const x = canvas.width / 2 + (Math.random() - 0.5) * 200;
+      const y = canvas.height / 2 + (Math.random() - 0.5) * 200;
+      const color = `hsl(${Math.random()*360}, 100%, 50%)`;
+      particles.push(new Particle(x, y, color));
+    }
+  }
+
+
+  function animate() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach((p, i) => {
+      p.update();
+      p.draw();
+      if(p.alpha <= 0) {
+        particles.splice(i,1);
+      }
+    });
+    if(particles.length > 0) {
+      requestAnimationFrame(animate);
+    }
+  }
+
+
+  createParticles();
+  animate();
+}
+
+
+// 셔플 후 카드 생성 및 배치
+function setupGame() {
+  shuffle(cards);
+  board.innerHTML = '';
+  cards.forEach((fruit, i) => {
+    const card = createCard(fruit, i);
+    board.appendChild(card);
+  });
+  score = 0;
+  matchedPairs = 0;
+  scoreEl.textContent = `점수: ${score}`;
+}
+
+
+setupGame();
+
+
+</script>
+
+
+</body>
+</html>
